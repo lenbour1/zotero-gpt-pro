@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "zoterogptpro@polygon.org": {
+      "updates": [
+        {
+          "version": "1.0.0",
+          "update_link": "https://github.com/MuiseDestiny/zotero-gpt-pro/releases/download/v1.0.0/zotero-gpt-pro.xpi"
+        }
+      ]
+    }
+  }
+}

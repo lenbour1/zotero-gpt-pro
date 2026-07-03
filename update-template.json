@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "__addonID__": {
+      "updates": [
+        {
+          "version": "__buildVersion__",
+          "update_link": "https://github.com/MuiseDestiny/zotero-gpt-pro/releases/download/v__buildVersion__/zotero-gpt-pro.xpi"
+        }
+      ]
+    }
+  }
+}
