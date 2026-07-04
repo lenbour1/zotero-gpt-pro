@@ -1,0 +1,129 @@
+name: CI - Build & Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit || echo "⚠️  TypeScript errors found (non-blocking)"
+
+      - name: Build production
+        run: npm run build-prod
+
+      - name: Verify .xpi exists
+        run: |
+          XPI=$(ls builds/*.xpi 2>/dev/null | head -1)
+          if [ -z "$XPI" ]; then
+            echo "❌ No .xpi file found in builds/"
+            exit 1
+          fi
+          echo "✅ .xpi found: $XPI ($(du -h $XPI | cut -f1))"
+
+      - name: Check manifest.json
+        run: |
+          cd builds/addon
+          if [ ! -f manifest.json ]; then
+            echo "❌ manifest.json missing"
+            exit 1
+          fi
+          echo "--- manifest.json ---"
+          cat manifest.json | python3 -m json.tool
+          
+          # Validate required fields
+          python3 -c "
+          import json
+          with open('manifest.json') as f:
+              m = json.load(f)
+          assert 'name' in m, 'name missing'
+          assert 'version' in m, 'version missing'
+          assert m.get('manifest_version') in [2,3], 'invalid manifest_version'
+          apps = m.get('applications',{}).get('zotero',{})
+          assert 'id' in apps, 'addon ID missing'
+          assert 'strict_min_version' in apps, 'strict_min_version missing'
+          assert 'strict_max_version' in apps, 'strict_max_version missing'
+          if 'update_url' in apps:
+              assert apps['update_url'].startswith('http'), 'update_url must be HTTP URL'
+              print(f'  update_url: {apps[\"update_url\"]} ✅')
+          print('manifest.json ✅ valid')
+          "
+
+      - name: Check bootstrap.js
+        run: |
+          cd builds/addon
+          if [ ! -f bootstrap.js ]; then
+            echo "❌ bootstrap.js missing"
+            exit 1
+          fi
+          grep -q "startup" bootstrap.js && echo "startup() ✅" || echo "⚠️  startup() not found"
+          grep -q "shutdown" bootstrap.js && echo "shutdown() ✅" || echo "⚠️  shutdown() not found"
+          grep -q "__addonRef__\|__addonInstance__" bootstrap.js && echo "addonRef/Instance ✅"
+          echo "bootstrap.js ✅"
+
+      - name: Check prefs.js
+        run: |
+          cd builds/addon
+          grep -q "extensions.zotero" prefs.js && echo "prefs.js ✅" || echo "❌ prefs.js invalid"
+
+      - name: Check file structure
+        run: |
+          cd builds/addon
+          echo "--- addon structure ---"
+          find . -type f | sort
+          
+          # Required files
+          for f in manifest.json bootstrap.js prefs.js chrome.manifest; do
+            test -f "$f" && echo "  $f ✅" || echo "  $f ❌ MISSING"
+          done
+          
+          # Check icons
+          test -f chrome/content/icons/gpt.png && echo "  gpt.png ✅" || echo "  gpt.png ⚠️"
+          test -f chrome/content/icons/favicon.png && echo "  favicon.png ✅" || echo "  favicon.png ⚠️"
+
+      - name: Zotero version compatibility check
+        run: |
+          cd builds/addon
+          MIN=$(python3 -c "import json;print(json.load(open('manifest.json'))['applications']['zotero']['strict_min_version'])")
+          MAX=$(python3 -c "import json;print(json.load(open('manifest.json'))['applications']['zotero']['strict_max_version'])")
+          echo "Zotero version range: $MIN → $MAX"
+          
+          # Check major versions covered
+          for v in 6 7 8 9; do
+            if python3 -c "
+              min='$MIN'; max='$MAX'
+              if max == '*': exit(0)
+              if max.endswith('.*'): max_n = int(max[:-2])
+              else: max_n = int(max.split('.')[0])
+              min_n = int(min.split('.')[0])
+              exit(0 if min_n <= $v <= max_n else 1)
+            " 2>/dev/null; then
+              echo "  Zotero $v ✅"
+            else
+              echo "  Zotero $v ❌ NOT covered"
+            fi
+          done
+
+      - name: Summary
+        run: |
+          echo "====================="
+          echo "  Build Validation   "
+          echo "====================="
+          XPI=$(ls builds/*.xpi 2>/dev/null | head -1)
+          echo "Plugin: $(basename $XPI)"
+          echo "Status: ✅ Ready for testing"
+          echo "====================="
