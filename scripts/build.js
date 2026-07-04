@@ -106,10 +106,10 @@ async function main() {
         __env__: `"${process.env.NODE_ENV}"`,
       },
       bundle: true,
+      format: "iife",
+      globalName: "__zoteroGPTPro__",
       outfile,
-      // Don't turn minify on
-      // minify: true,
-      target: "firefox60",
+      target: "firefox102",
     })
     .catch(() => process.exit(1));
 

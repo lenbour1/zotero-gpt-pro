@@ -1,6 +1,6 @@
 /**
  * Zotero GPT Pro Bootstrap
- * Updated for Zotero 9 (Firefox 128+) compatibility.
+ * Compatible with Zotero 7 (Firefox 102) and Zotero 9 (Firefox 128+).
  */
 
 if (typeof Zotero == "undefined") {
@@ -14,16 +14,17 @@ async function waitForZotero() {
     await Zotero.initializationPromise;
     return;
   }
-  var { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
+  // Zotero 6 legacy path
+  try {
+    var { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
+  } catch (e) {
+    var { Services } = ChromeUtils.importESModule("resource://gre/modules/Services.sys.mjs");
+  }
   var windows = Services.wm.getEnumerator("navigator:browser");
   var found = false;
   while (windows.hasMoreElements()) {
     let win = windows.getNext();
-    if (win.Zotero) {
-      Zotero = win.Zotero;
-      found = true;
-      break;
-    }
+    if (win.Zotero) { Zotero = win.Zotero; found = true; break; }
   }
   if (!found) {
     await new Promise((resolve) => {
@@ -62,6 +63,18 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
 
   const ctx = { rootURI };
   ctx._globalThis = ctx;
+
+  // Zotero sandbox compatibility shims
+  ctx.require = function(name) {
+    // Provide fallback for CommonJS requires in bundled code
+    if (name === "zotero/itemTree") return Zotero.ItemTree;
+    if (typeof window !== "undefined" && window[name]) return window[name];
+    Zotero.log(`[GPT Pro] require("${name}") not available in sandbox`);
+    return {};
+  };
+  ctx.window = ctx;
+  ctx.global = ctx;
+
   Services.scriptloader.loadSubScript(`${rootURI}/chrome/content/scripts/index.js`, ctx);
 }
 
@@ -70,8 +83,12 @@ function shutdown({ id, version, resourceURI, rootURI }, reason) {
   if (typeof Zotero === "undefined") {
     Zotero = Components.classes["@zotero.org/Zotero;1"].getService(Components.interfaces.nsISupports).wrappedJSObject;
   }
-  Zotero.__addonInstance__.hooks.onShutdown();
-  Cc["@mozilla.org/intl/stringbundle;1"].getService(Components.interfaces.nsIStringBundleService).flushBundles();
+  try {
+    Zotero.__addonInstance__.hooks.onShutdown();
+  } catch (e) {}
+  try {
+    Cc["@mozilla.org/intl/stringbundle;1"].getService(Components.interfaces.nsIStringBundleService).flushBundles();
+  } catch (e) {}
   try { Cu.unload(`${rootURI}/chrome/content/scripts/index.js`); } catch (e) {}
   if (chromeHandle) { chromeHandle.destruct(); chromeHandle = null; }
 }
@@ -86,7 +103,6 @@ function setDefaultPrefs(rootURI) {
         case "boolean": branch.setBoolPref(pref, value); break;
         case "string": branch.setStringPref(pref, value); break;
         case "number": branch.setIntPref(pref, value); break;
-        default: Zotero.logError(`Invalid type for pref '${pref}'`);
       }
     },
   };
