@@ -4,8 +4,6 @@ import Views from "./modules/views";
 import Utils from "./modules/utils";
 import { initValidation } from "./validation/core";
 import { initProFeatures } from "./modules/Pro";
-import { ToolbarManager } from "./modules/Pro/Toolbar";
-import { ConfigPanel } from "./modules/Pro/ConfigPanel";
 import Meet from "./modules/Meet/api";
 
 async function onStartup() {
@@ -20,7 +18,7 @@ async function onStartup() {
   // Set progress window icon
   ztoolkit.ProgressWindow.setIconURI(
     "default",
-    `chrome://${config.addonRef}/content/icons/favicon.png`
+    `chrome://${config.addonRef}/content/icons/gpt.png`
   );
 
   // Core modules
@@ -34,27 +32,17 @@ async function onStartup() {
     Zotero.log(`[Zotero GPT Pro] Pro initialization skipped: ${e}`);
   }
 
-  // Register toolbar button and right-click menus
-  try {
-    const toolbar = new ToolbarManager();
-    toolbar.init();
-    Zotero[config.addonInstance].toolbar = toolbar;
-  } catch (e) {
-    Zotero.log(`[Zotero GPT Pro] Toolbar init error: ${e}`);
-  }
-
-  // Register AI config panel
-  try {
-    const configPanel = new ConfigPanel();
-    Zotero[config.addonInstance].configPanel = configPanel;
-    
-    // Add config button to the GPT panel
-    window.setTimeout(() => {
-      configPanel.addConfigButtonToPanel();
-    }, 2000);
-  } catch (e) {
-    Zotero.log(`[Zotero GPT Pro] Config panel init error: ${e}`);
-  }
+  // Initialize sidebar after UI is ready
+  window.setTimeout(async () => {
+    try {
+      const { SidebarManager } = await import("./modules/Pro/Sidebar");
+      const sidebar = new SidebarManager();
+      sidebar.init();
+      Zotero[config.addonInstance].sidebar = sidebar;
+    } catch (e) {
+      Zotero.log(`[Zotero GPT Pro] Sidebar init error: ${e}`);
+    }
+  }, 1000);
 }
 
 function onShutdown(): void {
