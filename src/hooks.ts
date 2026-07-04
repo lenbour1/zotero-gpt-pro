@@ -4,7 +4,6 @@ import Views from "./modules/views";
 import Utils from "./modules/utils";
 import { initValidation } from "./validation/core";
 import { initProFeatures } from "./modules/Pro";
-import Meet from "./modules/Meet/api";
 
 async function onStartup() {
   initValidation(config.addonRef);
@@ -15,34 +14,19 @@ async function onStartup() {
   ]);
   initLocale();
 
-  // Set progress window icon
   ztoolkit.ProgressWindow.setIconURI(
     "default",
     `chrome://${config.addonRef}/content/icons/gpt.png`
   );
 
-  // Core modules
   Zotero[config.addonInstance].views = new Views();
   Zotero[config.addonInstance].utils = new Utils();
 
-  // Initialize Pro features
   try {
     Zotero[config.addonInstance].pro = initProFeatures();
   } catch (e) {
-    Zotero.log(`[Zotero GPT Pro] Pro initialization skipped: ${e}`);
+    Zotero.log(`[GPT Pro] init skipped: ${e}`);
   }
-
-  // Initialize sidebar after UI is ready
-  window.setTimeout(async () => {
-    try {
-      const { SidebarManager } = await import("./modules/Pro/Sidebar");
-      const sidebar = new SidebarManager();
-      sidebar.init();
-      Zotero[config.addonInstance].sidebar = sidebar;
-    } catch (e) {
-      Zotero.log(`[Zotero GPT Pro] Sidebar init error: ${e}`);
-    }
-  }, 1000);
 }
 
 function onShutdown(): void {
@@ -51,7 +35,4 @@ function onShutdown(): void {
   delete Zotero[config.addonInstance];
 }
 
-export default {
-  onStartup,
-  onShutdown,
-};
+export default { onStartup, onShutdown };
