@@ -173,7 +173,7 @@ async function main() {
 
   await compressing.zip.compressDir(
     path.join(buildDir, "addon"),
-    path.join(buildDir, `${name}.xpi`),
+    path.join(buildDir, `${name}-v${version}.xpi`),
     {
       ignoreBase: true,
     }
